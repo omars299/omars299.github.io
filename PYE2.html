@@ -1,40 +1,16 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<title>Lector Recibo CFE Real</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
-
-<style>
-body{font-family:Arial;text-align:center}
-table{margin:auto;border-collapse:collapse;width:95%}
-td,th{border:1px solid black;padding:8px}
-</style>
-</head>
-
-<body>
-
-<h2>Escanear Recibo CFE</h2>
-<input type="file" id="pdfUpload" accept="application/pdf">
-<br><br>
-
-<table>
-<thead>
-<tr>
-<th>Propietario</th>
-<th>No. Servicio</th>
-<th>Dirección</th>
-<th>Consumo (kWh)</th>
-<th>Total</th>
-<th>Descargar</th>
-</tr>
-</thead>
-<tbody id="tablaDatos"></tbody>
-</table>
-
 <script>
+
+let registros = [];
+
+function normalizarTexto(texto){
+return texto
+.replace(/\n/g," ")
+.replace(/SERVlClO/g,"SERVICIO")
+.replace(/O/g,"0")
+.replace(/I/g,"1")
+.replace(/\s+/g," ")
+.toUpperCase();
+}
 
 document.getElementById('pdfUpload').addEventListener('change', async function(e){
 
@@ -58,29 +34,30 @@ await page.render({canvasContext:context,viewport:viewport}).promise;
 
 Tesseract.recognize(canvas,'spa').then(({data:{text}})=>{
 
-console.log(text);
+let limpio = normalizarTexto(text);
 
-let limpio = text.replace(/\n/g," ").toUpperCase();
-
-// 🔴 BASADO EN TU RECIBO REAL
-let propietario = limpio.match(/[A-Z]+\s[A-Z]+\s[A-Z]+\s[A-Z]+/);
-let servicio = limpio.match(/NO\.\s?DE\s?SERVICIO\s*(\d{10,12})/);
-let direccion = limpio.match(/\d{5}\s[A-Z\s]+\s[M]{0,1}[X]{0,1}/);
-let consumo = limpio.match(/ENERG[IÍ]A\s*\(KWH\)\s*(\d+)/);
+// 🔍 EXTRACCIÓN MEJORADA
+let propietario = limpio.match(/([A-Z]+\s[A-Z]+\s[A-Z]+\s[A-Z]+)/);
+let servicio = limpio.match(/NO\.?\s*DE\s*SERVICIO\s*(\d{10,12})/);
+let direccion = limpio.match(/(CALLE|AV|COL|MZ|LT)[A-Z0-9\s\.\-]+/);
+let consumo = limpio.match(/(\d+)\s*KWH/);
 let total = limpio.match(/\$\s*(\d+\.\d+)/);
 
-let tabla = document.getElementById("tablaDatos");
+// 📦 GUARDAR EN OBJETO
+let datos = {
+propietario: propietario?propietario[0]:"No encontrado",
+servicio: servicio?servicio[1]:"No encontrado",
+direccion: direccion?direccion[0]:"No encontrado",
+consumo: consumo?consumo[1]:"No encontrado",
+total: total?total[1]:"No encontrado",
+archivo: URL.createObjectURL(file)
+};
 
-tabla.innerHTML += `
-<tr>
-<td>${propietario?propietario[0]:"No encontrado"}</td>
-<td>${servicio?servicio[1]:"No encontrado"}</td>
-<td>${direccion?direccion[0]:"No encontrado"}</td>
-<td>${consumo?consumo[1]:"No encontrado"}</td>
-<td>${total?total[1]:"No encontrado"}</td>
-<td><a href="${URL.createObjectURL(file)}" download="Recibo_CFE.pdf">Descargar</a></td>
-</tr>
-`;
+// 💾 GUARDAR EN MEMORIA
+registros.push(datos);
+
+// 📊 ACTUALIZAR TABLA
+actualizarTabla();
 
 });
 
@@ -90,7 +67,26 @@ reader.readAsArrayBuffer(file);
 
 });
 
-</script>
+function actualizarTabla(){
 
-</body>
-</html>
+let tabla = document.getElementById("tablaDatos");
+tabla.innerHTML = "";
+
+registros.forEach(d => {
+
+tabla.innerHTML += `
+<tr>
+<td>${d.propietario}</td>
+<td>${d.servicio}</td>
+<td>${d.direccion}</td>
+<td>${d.consumo}</td>
+<td>${d.total}</td>
+<td><a href="${d.archivo}" download="Recibo_CFE.pdf">Descargar</a></td>
+</tr>
+`;
+
+});
+
+}
+
+</script>
