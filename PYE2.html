@@ -2,13 +2,12 @@
 
 let registros = [];
 
-function normalizarTexto(texto){
+function limpiarTexto(texto){
 return texto
-.replace(/\n/g," ")
-.replace(/SERVlClO/g,"SERVICIO")
-.replace(/O/g,"0")
-.replace(/I/g,"1")
+.replace(/\n+/g,"\n")
 .replace(/\s+/g," ")
+.replace(/SERVlClO/g,"SERVICIO")
+.replace(/D1RECC1ON/g,"DIRECCION")
 .toUpperCase();
 }
 
@@ -34,29 +33,26 @@ await page.render({canvasContext:context,viewport:viewport}).promise;
 
 Tesseract.recognize(canvas,'spa').then(({data:{text}})=>{
 
-let limpio = normalizarTexto(text);
+let limpio = limpiarTexto(text);
 
-// 🔍 EXTRACCIÓN MEJORADA
-let propietario = limpio.match(/([A-Z]+\s[A-Z]+\s[A-Z]+\s[A-Z]+)/);
-let servicio = limpio.match(/NO\.?\s*DE\s*SERVICIO\s*(\d{10,12})/);
-let direccion = limpio.match(/(CALLE|AV|COL|MZ|LT)[A-Z0-9\s\.\-]+/);
-let consumo = limpio.match(/(\d+)\s*KWH/);
-let total = limpio.match(/\$\s*(\d+\.\d+)/);
+console.log(limpio); // Para depuración
 
-// 📦 GUARDAR EN OBJETO
+// 🔎 EXTRAER EXACTAMENTE LO QUE VA DESPUÉS
+
+let propietarioMatch = limpio.match(/NOMBRE\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ\s]+)/);
+let servicioMatch = limpio.match(/NO\.?\s*DE\s*SERVICIO\s*[:\-]?\s*(\d+)/);
+let direccionMatch = limpio.match(/DIRECCION\s*[:\-]?\s*([A-Z0-9\s\.\-#]+)/);
+let consumoMatch = limpio.match(/(\d+)\s*KWH/);
+
 let datos = {
-propietario: propietario?propietario[0]:"No encontrado",
-servicio: servicio?servicio[1]:"No encontrado",
-direccion: direccion?direccion[0]:"No encontrado",
-consumo: consumo?consumo[1]:"No encontrado",
-total: total?total[1]:"No encontrado",
+propietario: propietarioMatch ? propietarioMatch[1].trim() : "No encontrado",
+servicio: servicioMatch ? servicioMatch[1].trim() : "No encontrado",
+direccion: direccionMatch ? direccionMatch[1].trim() : "No encontrado",
+consumo: consumoMatch ? consumoMatch[1].trim() : "No encontrado",
 archivo: URL.createObjectURL(file)
 };
 
-// 💾 GUARDAR EN MEMORIA
 registros.push(datos);
-
-// 📊 ACTUALIZAR TABLA
 actualizarTabla();
 
 });
@@ -80,7 +76,6 @@ tabla.innerHTML += `
 <td>${d.servicio}</td>
 <td>${d.direccion}</td>
 <td>${d.consumo}</td>
-<td>${d.total}</td>
 <td><a href="${d.archivo}" download="Recibo_CFE.pdf">Descargar</a></td>
 </tr>
 `;
