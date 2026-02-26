@@ -2,22 +2,21 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Lector Recibo CFE</title>
+<title>Lector Recibo CFE Real</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 <style>
 body{font-family:Arial;text-align:center}
-table{margin:auto;border-collapse:collapse;width:90%}
+table{margin:auto;border-collapse:collapse;width:95%}
 td,th{border:1px solid black;padding:8px}
 </style>
 </head>
 
 <body>
 
-<h2>Escanear Recibo de Luz (PDF)</h2>
-
+<h2>Escanear Recibo CFE</h2>
 <input type="file" id="pdfUpload" accept="application/pdf">
 <br><br>
 
@@ -28,6 +27,7 @@ td,th{border:1px solid black;padding:8px}
 <th>No. Servicio</th>
 <th>Dirección</th>
 <th>Consumo (kWh)</th>
+<th>Total</th>
 <th>Descargar</th>
 </tr>
 </thead>
@@ -44,11 +44,10 @@ let reader = new FileReader();
 reader.onload = async function(){
 
 let typedarray = new Uint8Array(this.result);
-
 let pdf = await pdfjsLib.getDocument(typedarray).promise;
 let page = await pdf.getPage(1);
 
-let viewport = page.getViewport({scale:2});
+let viewport = page.getViewport({scale:3});
 let canvas = document.createElement("canvas");
 let context = canvas.getContext("2d");
 
@@ -61,23 +60,24 @@ Tesseract.recognize(canvas,'spa').then(({data:{text}})=>{
 
 console.log(text);
 
-// 🔍 LIMPIEZA DE TEXTO
-let limpio = text.replace(/\n/g," ");
+let limpio = text.replace(/\n/g," ").toUpperCase();
 
-// 📌 EXTRACCIÓN CFE
-let propietario = limpio.match(/Nombre\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ\s]+)/i);
-let servicio = limpio.match(/Servicio\s*[:\-]?\s*(\d{10,12})/i);
-let direccion = limpio.match(/Direcci[oó]n\s*[:\-]?\s*([A-Z0-9\s\.\#\-]+)/i);
-let consumo = limpio.match(/Energ[ií]a\s*Consumida\s*(\d+)\s*kWh/i);
+// 🔴 BASADO EN TU RECIBO REAL
+let propietario = limpio.match(/[A-Z]+\s[A-Z]+\s[A-Z]+\s[A-Z]+/);
+let servicio = limpio.match(/NO\.\s?DE\s?SERVICIO\s*(\d{10,12})/);
+let direccion = limpio.match(/\d{5}\s[A-Z\s]+\s[M]{0,1}[X]{0,1}/);
+let consumo = limpio.match(/ENERG[IÍ]A\s*\(KWH\)\s*(\d+)/);
+let total = limpio.match(/\$\s*(\d+\.\d+)/);
 
 let tabla = document.getElementById("tablaDatos");
 
 tabla.innerHTML += `
 <tr>
-<td>${propietario?propietario[1]:"No encontrado"}</td>
+<td>${propietario?propietario[0]:"No encontrado"}</td>
 <td>${servicio?servicio[1]:"No encontrado"}</td>
-<td>${direccion?direccion[1]:"No encontrado"}</td>
+<td>${direccion?direccion[0]:"No encontrado"}</td>
 <td>${consumo?consumo[1]:"No encontrado"}</td>
+<td>${total?total[1]:"No encontrado"}</td>
 <td><a href="${URL.createObjectURL(file)}" download="Recibo_CFE.pdf">Descargar</a></td>
 </tr>
 `;
