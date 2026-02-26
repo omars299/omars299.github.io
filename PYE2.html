@@ -1,6 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Lector de Recibos CFE</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<style>
+body{
+font-family:Arial;
+background:#f4f4f4;
+text-align:center;
+padding:20px;
+}
+
+table{
+margin:auto;
+border-collapse:collapse;
+width:95%;
+background:white;
+}
+
+td,th{
+border:1px solid black;
+padding:10px;
+}
+
+h2{
+color:#0a5;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Sistema de Lectura de Recibos CFE</h2>
+
+<input type="file" id="pdfUpload" accept="application/pdf">
+<br><br>
+
+<table>
+<thead>
+<tr>
+<th>Propietario</th>
+<th>No. Servicio</th>
+<th>Dirección</th>
+<th>Consumo (kWh)</th>
+<th>Descargar</th>
+</tr>
+</thead>
+<tbody id="tablaDatos"></tbody>
+</table>
+
 <script>
 
-let registros = [];
+let registros=[];
 
 function limpiarTexto(texto){
 return texto
@@ -13,43 +68,41 @@ return texto
 
 document.getElementById('pdfUpload').addEventListener('change', async function(e){
 
-let file = e.target.files[0];
-let reader = new FileReader();
+let file=e.target.files[0];
+let reader=new FileReader();
 
-reader.onload = async function(){
+reader.onload=async function(){
 
-let typedarray = new Uint8Array(this.result);
-let pdf = await pdfjsLib.getDocument(typedarray).promise;
-let page = await pdf.getPage(1);
+let typedarray=new Uint8Array(this.result);
+let pdf=await pdfjsLib.getDocument(typedarray).promise;
+let page=await pdf.getPage(1);
 
-let viewport = page.getViewport({scale:3});
-let canvas = document.createElement("canvas");
-let context = canvas.getContext("2d");
+let viewport=page.getViewport({scale:3});
+let canvas=document.createElement("canvas");
+let context=canvas.getContext("2d");
 
-canvas.height = viewport.height;
-canvas.width = viewport.width;
+canvas.height=viewport.height;
+canvas.width=viewport.width;
 
 await page.render({canvasContext:context,viewport:viewport}).promise;
 
 Tesseract.recognize(canvas,'spa').then(({data:{text}})=>{
 
-let limpio = limpiarTexto(text);
+let limpio=limpiarTexto(text);
 
-console.log(limpio); // Para depuración
+// 🔎 EXTRAER CAMPOS EXACTOS
+let propietario=limpio.match(/NOMBRE\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ\s]+)/);
+let servicio=limpio.match(/NO\.?\s*DE\s*SERVICIO\s*[:\-]?\s*(\d+)/);
+let direccion=limpio.match(/DIRECCION\s*[:\-]?\s*([A-Z0-9\s\.\-#]+)/);
+let consumo=limpio.match(/(\d+)\s*KWH/);
 
-// 🔎 EXTRAER EXACTAMENTE LO QUE VA DESPUÉS
-
-let propietarioMatch = limpio.match(/NOMBRE\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ\s]+)/);
-let servicioMatch = limpio.match(/NO\.?\s*DE\s*SERVICIO\s*[:\-]?\s*(\d+)/);
-let direccionMatch = limpio.match(/DIRECCION\s*[:\-]?\s*([A-Z0-9\s\.\-#]+)/);
-let consumoMatch = limpio.match(/(\d+)\s*KWH/);
-
-let datos = {
-propietario: propietarioMatch ? propietarioMatch[1].trim() : "No encontrado",
-servicio: servicioMatch ? servicioMatch[1].trim() : "No encontrado",
-direccion: direccionMatch ? direccionMatch[1].trim() : "No encontrado",
-consumo: consumoMatch ? consumoMatch[1].trim() : "No encontrado",
-archivo: URL.createObjectURL(file)
+// 📦 GUARDAR DATOS
+let datos={
+propietario:propietario?propietario[1].trim():"No encontrado",
+servicio:servicio?servicio[1].trim():"No encontrado",
+direccion:direccion?direccion[1].trim():"No encontrado",
+consumo:consumo?consumo[1].trim():"No encontrado",
+archivo:URL.createObjectURL(file)
 };
 
 registros.push(datos);
@@ -65,12 +118,12 @@ reader.readAsArrayBuffer(file);
 
 function actualizarTabla(){
 
-let tabla = document.getElementById("tablaDatos");
-tabla.innerHTML = "";
+let tabla=document.getElementById("tablaDatos");
+tabla.innerHTML="";
 
-registros.forEach(d => {
+registros.forEach(d=>{
 
-tabla.innerHTML += `
+tabla.innerHTML+=`
 <tr>
 <td>${d.propietario}</td>
 <td>${d.servicio}</td>
@@ -85,3 +138,6 @@ tabla.innerHTML += `
 }
 
 </script>
+
+</body>
+</html>
