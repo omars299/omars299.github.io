@@ -1,356 +1,98 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Visor de PDFs y Registro</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f4;
-        }
-        .container {
-            margin: 20px auto;
-            width: 85%;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
-        }
-        button {
-            padding: 10px 20px;
-            margin: 10px;
-            border: none;
-            border-radius: 5px;
-            background-color: #007BFF;
-            color: white;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        iframe {
-            width: 100%;
-            height: 400px;
-            margin-top: 20px;
-        }
-        input {
-            padding: 8px;
-            margin: 5px;
-            width: 200px;
-        }
-        table {
-            width: 100%;
-            margin-top: 20px;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 8px;
-        }
-        th {
-            background-color: #007BFF;
-            color: white;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Lector de Recibos de Luz PDF</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<style>
+body{font-family:Arial;text-align:center}
+table{margin:auto;border-collapse:collapse;width:80%}
+td,th{border:1px solid black;padding:8px}
+</style>
 </head>
+
 <body>
 
-<div class="container">
-    <h2>Visor de Documentos PDF</h2>
+<h2>Escanear Recibo de Luz PDF</h2>
 
-    <button onclick="abrirPDF('Datos del recibo de luz 1.pdf')">Abrir PDF 1</button>
-    <button onclick="abrirPDF('Datos del recibo de luz 2.pdf')">Abrir PDF 2</button>
-    <button onclick="abrirPDF('Datos del recibo de luz 3.pdf')">Abrir PDF 3</button>
-    <br>
-    <input type="file" id="pdfUpload" accept=".pdf" style="margin-top: 15px;">
-    <button onclick="cargarPDF()">Cargar PDF</button>
+<input type="file" id="pdfUpload" accept="application/pdf">
+<br><br>
 
-    <iframe id="visorPDF"></iframe>
-</div>
-
-<div class="container">
-    <h2>Registro de Servicio</h2>
-
-    <input type="text" id="numeroServicio" placeholder="Número de servicio"><br>
-    <input type="text" id="periodo" placeholder="Periodo"><br>
-    <input type="number" id="lecturaAnterior" placeholder="Lectura anterior"><br>
-    <input type="number" id="lecturaActual" placeholder="Lectura actual"><br>
-    <input type="number" id="totalPagar" placeholder="Total a pagar"><br>
-
-    <button onclick="guardarDatos()">Guardar Datos</button>
-
-    <p id="mensaje"></p>
-
-    <table>
-        <thead>
-            <tr>
-                <th>No. Servicio</th>
-                <th>Periodo</th>
-                <th>Lectura Anterior</th>
-                <th>Lectura Actual</th>
-                <th>Total a Pagar</th>
-            </tr>
-        </thead>
-        <tbody id="tablaDatos"></tbody>
-    </table>
-</div>
+<table>
+<thead>
+<tr>
+<th>Nombre</th>
+<th>Servicio</th>
+<th>Dirección</th>
+<th>Periodo</th>
+<th>Consumo</th>
+<th>Total</th>
+<th>Descargar</th>
+</tr>
+</thead>
+<tbody id="tablaDatos"></tbody>
+</table>
 
 <script>
-    function abrirPDF(ruta) {
-        document.getElementById("visorPDF").src = ruta;
-    }
 
-    function cargarPDF() {
-        const fileInput = document.getElementById('pdfUpload');
-        const pdfFile = fileInput.files[0];
+document.getElementById('pdfUpload').addEventListener('change', async function(e){
 
-        if (pdfFile) {
-            const fileURL = URL.createObjectURL(pdfFile);
-            document.getElementById("visorPDF").src = fileURL;
-        } else {
-            alert("Por favor, selecciona un archivo PDF.");
-        }
-    }
+let file = e.target.files[0];
+let reader = new FileReader();
 
-    function guardarDatos() {
+reader.onload = async function(){
 
-        const numeroServicio = document.getElementById("numeroServicio").value;
-        const periodo = document.getElementById("periodo").value;
-        const lecturaAnterior = document.getElementById("lecturaAnterior").value;
-        const lecturaActual = document.getElementById("lecturaActual").value;
-        const totalPagar = document.getElementById("totalPagar").value;
+let typedarray = new Uint8Array(this.result);
 
-        if (!numeroServicio || !periodo || !lecturaAnterior || !lecturaActual || !totalPagar) {
-            document.getElementById("mensaje").innerText = "Completa todos los campos.";
-            return;
-        }
+let pdf = await pdfjsLib.getDocument(typedarray).promise;
+let page = await pdf.getPage(1);
 
-        const nuevoRegistro = {
-            numeroServicio,
-            periodo,
-            lecturaAnterior,
-            lecturaActual,
-            totalPagar
-        };
+let viewport = page.getViewport({scale:2});
+let canvas = document.createElement("canvas");
+let context = canvas.getContext("2d");
 
-        let registros = JSON.parse(localStorage.getItem("registros")) || [];
-        registros.push(nuevoRegistro);
-        localStorage.setItem("registros", JSON.stringify(registros));
+canvas.height = viewport.height;
+canvas.width = viewport.width;
 
-        document.getElementById("mensaje").innerText = "Registro guardado correctamente.";
+await page.render({canvasContext:context,viewport:viewport}).promise;
 
-        mostrarDatos();
-        limpiarCampos();
-    }
+Tesseract.recognize(canvas,'spa').then(({data:{text}})=>{
 
-    function mostrarDatos() {
-        const tabla = document.getElementById("tablaDatos");
-        tabla.innerHTML = "";
+console.log(text);
 
-        let registros = JSON.parse(localStorage.getItem("registros")) || [];
+// Expresiones regulares (CFE)
+let nombre = text.match(/Nombre\s*(.*)/);
+let servicio = text.match(/Servicio\s*(\d+)/);
+let direccion = text.match(/Dirección\s*(.*)/);
+let periodo = text.match(/Periodo\s*(.*)/);
+let consumo = text.match(/kWh\s*(\d+)/);
+let total = text.match(/\$\s*(\d+\.?\d*)/);
 
-        registros.forEach(registro => {
-            tabla.innerHTML += `
-                <tr>
-                    <td>${registro.numeroServicio}</td>
-                    <td>${registro.periodo}</td>
-                    <td>${registro.lecturaAnterior}</td>
-                    <td>${registro.lecturaActual}</td>
-                    <td>$${registro.totalPagar}</td>
-                </tr>
-            `;
-        });
-    }
+let tabla = document.getElementById("tablaDatos");
 
-    function limpiarCampos() {
-        document.getElementById("numeroServicio").value = "";
-        document.getElementById("periodo").value = "";
-        document.getElementById("lecturaAnterior").value = "";
-        document.getElementById("lecturaActual").value = "";
-        document.getElementById("totalPagar").value = "";
-    }
+tabla.innerHTML += `
+<tr>
+<td>${nombre?nombre[1]:"-"}</td>
+<td>${servicio?servicio[1]:"-"}</td>
+<td>${direccion?direccion[1]:"-"}</td>
+<td>${periodo?periodo[1]:"-"}</td>
+<td>${consumo?consumo[1]:"-"}</td>
+<td>${total?total[1]:"-"}</td>
+<td><a href="${URL.createObjectURL(file)}" download="Recibo.pdf">Descargar</a></td>
+</tr>
+`;
 
-    // Cargar datos al iniciar
-    mostrarDatos();
-</script>
+});
 
-</body>
-</html><!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Visor de PDFs y Registro</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f4;
-        }
-        .container {
-            margin: 20px auto;
-            width: 85%;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0,0,0,0.2);
-        }
-        button {
-            padding: 10px 20px;
-            margin: 10px;
-            border: none;
-            border-radius: 5px;
-            background-color: #007BFF;
-            color: white;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        iframe {
-            width: 100%;
-            height: 400px;
-            margin-top: 20px;
-        }
-        input {
-            padding: 8px;
-            margin: 5px;
-            width: 200px;
-        }
-        table {
-            width: 100%;
-            margin-top: 20px;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 8px;
-        }
-        th {
-            background-color: #007BFF;
-            color: white;
-        }
-    </style>
-</head>
-<body>
+};
 
-<div class="container">
-    <h2>Visor de Documentos PDF</h2>
+reader.readAsArrayBuffer(file);
 
-    <button onclick="abrirPDF('Datos del recibo de luz 1.pdf')">Abrir PDF 1</button>
-    <button onclick="abrirPDF('Datos del recibo de luz 2.pdf')">Abrir PDF 2</button>
-    <button onclick="abrirPDF('Datos del recibo de luz 3.pdf')">Abrir PDF 3</button>
-    <br>
-    <input type="file" id="pdfUpload" accept=".pdf" style="margin-top: 15px;">
-    <button onclick="cargarPDF()">Cargar PDF</button>
+});
 
-    <iframe id="visorPDF"></iframe>
-</div>
-
-<div class="container">
-    <h2>Registro de Servicio</h2>
-
-    <input type="text" id="numeroServicio" placeholder="Número de servicio"><br>
-    <input type="text" id="periodo" placeholder="Periodo"><br>
-    <input type="number" id="lecturaAnterior" placeholder="Lectura anterior"><br>
-    <input type="number" id="lecturaActual" placeholder="Lectura actual"><br>
-    <input type="number" id="totalPagar" placeholder="Total a pagar"><br>
-
-    <button onclick="guardarDatos()">Guardar Datos</button>
-
-    <p id="mensaje"></p>
-
-    <table>
-        <thead>
-            <tr>
-                <th>No. Servicio</th>
-                <th>Periodo</th>
-                <th>Lectura Anterior</th>
-                <th>Lectura Actual</th>
-                <th>Total a Pagar</th>
-            </tr>
-        </thead>
-        <tbody id="tablaDatos"></tbody>
-    </table>
-</div>
-
-<script>
-    function abrirPDF(ruta) {
-        document.getElementById("visorPDF").src = ruta;
-    }
-
-    function cargarPDF() {
-        const fileInput = document.getElementById('pdfUpload');
-        const pdfFile = fileInput.files[0];
-
-        if (pdfFile) {
-            const fileURL = URL.createObjectURL(pdfFile);
-            document.getElementById("visorPDF").src = fileURL;
-        } else {
-            alert("Por favor, selecciona un archivo PDF.");
-        }
-    }
-
-    function guardarDatos() {
-
-        const numeroServicio = document.getElementById("numeroServicio").value;
-        const periodo = document.getElementById("periodo").value;
-        const lecturaAnterior = document.getElementById("lecturaAnterior").value;
-        const lecturaActual = document.getElementById("lecturaActual").value;
-        const totalPagar = document.getElementById("totalPagar").value;
-
-        if (!numeroServicio || !periodo || !lecturaAnterior || !lecturaActual || !totalPagar) {
-            document.getElementById("mensaje").innerText = "Completa todos los campos.";
-            return;
-        }
-
-        const nuevoRegistro = {
-            numeroServicio,
-            periodo,
-            lecturaAnterior,
-            lecturaActual,
-            totalPagar
-        };
-
-        let registros = JSON.parse(localStorage.getItem("registros")) || [];
-        registros.push(nuevoRegistro);
-        localStorage.setItem("registros", JSON.stringify(registros));
-
-        document.getElementById("mensaje").innerText = "Registro guardado correctamente.";
-
-        mostrarDatos();
-        limpiarCampos();
-    }
-
-    function mostrarDatos() {
-        const tabla = document.getElementById("tablaDatos");
-        tabla.innerHTML = "";
-
-        let registros = JSON.parse(localStorage.getItem("registros")) || [];
-
-        registros.forEach(registro => {
-            tabla.innerHTML += `
-                <tr>
-                    <td>${registro.numeroServicio}</td>
-                    <td>${registro.periodo}</td>
-                    <td>${registro.lecturaAnterior}</td>
-                    <td>${registro.lecturaActual}</td>
-                    <td>$${registro.totalPagar}</td>
-                </tr>
-            `;
-        });
-    }
-
-    function limpiarCampos() {
-        document.getElementById("numeroServicio").value = "";
-        document.getElementById("periodo").value = "";
-        document.getElementById("lecturaAnterior").value = "";
-        document.getElementById("lecturaActual").value = "";
-        document.getElementById("totalPagar").value = "";
-    }
-
-    // Cargar datos al iniciar
-    mostrarDatos();
 </script>
 
 </body>
