@@ -2,21 +2,21 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Lector de Recibos de Luz PDF</title>
+<title>Lector Recibo CFE</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
 <style>
 body{font-family:Arial;text-align:center}
-table{margin:auto;border-collapse:collapse;width:80%}
+table{margin:auto;border-collapse:collapse;width:90%}
 td,th{border:1px solid black;padding:8px}
 </style>
 </head>
 
 <body>
 
-<h2>Escanear Recibo de Luz PDF</h2>
+<h2>Escanear Recibo de Luz (PDF)</h2>
 
 <input type="file" id="pdfUpload" accept="application/pdf">
 <br><br>
@@ -24,12 +24,10 @@ td,th{border:1px solid black;padding:8px}
 <table>
 <thead>
 <tr>
-<th>Nombre</th>
-<th>Servicio</th>
+<th>Propietario</th>
+<th>No. Servicio</th>
 <th>Dirección</th>
-<th>Periodo</th>
-<th>Consumo</th>
-<th>Total</th>
+<th>Consumo (kWh)</th>
 <th>Descargar</th>
 </tr>
 </thead>
@@ -63,25 +61,24 @@ Tesseract.recognize(canvas,'spa').then(({data:{text}})=>{
 
 console.log(text);
 
-// Expresiones regulares (CFE)
-let nombre = text.match(/Nombre\s*(.*)/);
-let servicio = text.match(/Servicio\s*(\d+)/);
-let direccion = text.match(/Dirección\s*(.*)/);
-let periodo = text.match(/Periodo\s*(.*)/);
-let consumo = text.match(/kWh\s*(\d+)/);
-let total = text.match(/\$\s*(\d+\.?\d*)/);
+// 🔍 LIMPIEZA DE TEXTO
+let limpio = text.replace(/\n/g," ");
+
+// 📌 EXTRACCIÓN CFE
+let propietario = limpio.match(/Nombre\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ\s]+)/i);
+let servicio = limpio.match(/Servicio\s*[:\-]?\s*(\d{10,12})/i);
+let direccion = limpio.match(/Direcci[oó]n\s*[:\-]?\s*([A-Z0-9\s\.\#\-]+)/i);
+let consumo = limpio.match(/Energ[ií]a\s*Consumida\s*(\d+)\s*kWh/i);
 
 let tabla = document.getElementById("tablaDatos");
 
 tabla.innerHTML += `
 <tr>
-<td>${nombre?nombre[1]:"-"}</td>
-<td>${servicio?servicio[1]:"-"}</td>
-<td>${direccion?direccion[1]:"-"}</td>
-<td>${periodo?periodo[1]:"-"}</td>
-<td>${consumo?consumo[1]:"-"}</td>
-<td>${total?total[1]:"-"}</td>
-<td><a href="${URL.createObjectURL(file)}" download="Recibo.pdf">Descargar</a></td>
+<td>${propietario?propietario[1]:"No encontrado"}</td>
+<td>${servicio?servicio[1]:"No encontrado"}</td>
+<td>${direccion?direccion[1]:"No encontrado"}</td>
+<td>${consumo?consumo[1]:"No encontrado"}</td>
+<td><a href="${URL.createObjectURL(file)}" download="Recibo_CFE.pdf">Descargar</a></td>
 </tr>
 `;
 
