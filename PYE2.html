@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Lector de PDF - Recibo de Luz</title>
+  <title>Lector PDF CFE</title>
 
   <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -14,90 +14,96 @@
     }
 
     table {
-      border-collapse: collapse;
       width: 100%;
+      border-collapse: collapse;
       margin-top: 20px;
     }
 
     th, td {
       border: 1px solid #ccc;
       padding: 10px;
-      text-align: left;
     }
 
     th {
-      background-color: #f2f2f2;
+      background-color: #eaeaea;
     }
   </style>
 </head>
 <body>
 
-  <h2>Escanear PDF y extraer datos</h2>
+<h2>Escanear recibo CFE (PDF)</h2>
 
-  <input type="file" id="pdfInput" accept="application/pdf">
+<input type="file" id="pdfInput" accept="application/pdf">
 
-  <table>
-    <thead>
-      <tr>
-        <th>Propietario</th>
-        <th>No de Servicio</th>
-        <th>Dirección</th>
-        <th>Consumo (kWh)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td id="propietario"></td>
-        <td id="servicio"></td>
-        <td id="direccion"></td>
-        <td id="consumo"></td>
-      </tr>
-    </tbody>
-  </table>
+<table>
+  <thead>
+    <tr>
+      <th>Propietario</th>
+      <th>No. de Servicio</th>
+      <th>Dirección</th>
+      <th>Consumo (kWh)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td id="propietario"></td>
+      <td id="servicio"></td>
+      <td id="direccion"></td>
+      <td id="consumo"></td>
+    </tr>
+  </tbody>
+</table>
 
-  <script>
-    const pdfInput = document.getElementById("pdfInput");
+<script>
+  document.getElementById("pdfInput").addEventListener("change", async function () {
 
-    pdfInput.addEventListener("change", async function () {
-      const file = this.files[0];
-      if (!file) return;
+    const file = this.files[0];
+    if (!file) return;
 
-      const fileReader = new FileReader();
-      fileReader.onload = async function () {
-        const typedArray = new Uint8Array(this.result);
+    const reader = new FileReader();
+    reader.onload = async function () {
 
-        const pdf = await pdfjsLib.getDocument(typedArray).promise;
-        let fullText = "";
+      const pdfData = new Uint8Array(this.result);
+      const pdf = await pdfjsLib.getDocument(pdfData).promise;
 
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items.map(item => item.str).join(" ");
-          fullText += pageText + " ";
-        }
+      let textoCompleto = "";
 
-        // 🔍 PATRONES DE BÚSQUEDA
-        const propietarioRegex = /([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)/;
-        const servicioRegex = /No\s?de\s?servicio\s?\d+/i;
-        const direccionRegex = /(Calle|Av\.|Avenida|Colonia|Col\.|CP\s?\d{5}).{0,50}/i;
-        const consumoRegex = /\d+(\.\d+)?\s?kWh/i;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        textoCompleto += content.items.map(i => i.str).join(" ") + " ";
+      }
 
-        // 📌 EXTRAER DATOS
-        const propietario = fullText.match(propietarioRegex);
-        const servicio = fullText.match(servicioRegex);
-        const direccion = fullText.match(direccionRegex);
-        const consumo = fullText.match(consumoRegex);
+      // 🔎 EXPRESIONES REGULARES AJUSTADAS A CFE
 
-        // 📊 MOSTRAR EN TABLA
-        document.getElementById("propietario").textContent = propietario ? propietario[0] : "No encontrado";
-        document.getElementById("servicio").textContent = servicio ? servicio[0] : "No encontrado";
-        document.getElementById("direccion").textContent = direccion ? direccion[0] : "No encontrado";
-        document.getElementById("consumo").textContent = consumo ? consumo[0] : "No encontrado";
-      };
+      // Nombre en mayúsculas (3 o más palabras)
+      const propietarioRegex = /[A-ZÁÉÍÓÚÑ]{3,}(?:\s[A-ZÁÉÍÓÚÑ]{3,}){2,}/;
 
-      fileReader.readAsArrayBuffer(file);
-    });
-  </script>
+      // No. de servicio
+      const servicioRegex = /No\.?\s?de\s?Servicio[:\s]*\d{8,}/i;
+
+      // Dirección (CALLE, COLONIA, CP)
+      const direccionRegex = /(CALLE|AVENIDA|COLONIA|COL\.|CP)\s?.{10,60}/i;
+
+      // Consumo en kWh
+      const consumoRegex = /\d+\s?kWh/i;
+
+      // 📌 BÚSQUEDA
+      const propietario = textoCompleto.match(propietarioRegex);
+      const servicio = textoCompleto.match(servicioRegex);
+      const direccion = textoCompleto.match(direccionRegex);
+      const consumo = textoCompleto.match(consumoRegex);
+
+      // 📊 MOSTRAR RESULTADOS
+      document.getElementById("propietario").textContent = propietario ? propietario[0] : "No encontrado";
+      document.getElementById("servicio").textContent = servicio ? servicio[0] : "No encontrado";
+      document.getElementById("direccion").textContent = direccion ? direccion[0] : "No encontrado";
+      document.getElementById("consumo").textContent = consumo ? consumo[0] : "No encontrado";
+    };
+
+    reader.readAsArrayBuffer(file);
+  });
+</script>
 
 </body>
 </html>
