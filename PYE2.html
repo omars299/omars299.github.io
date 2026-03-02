@@ -1,143 +1,103 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Lector de Recibos CFE</title>
+  <meta charset="UTF-8">
+  <title>Lector de PDF - Recibo de Luz</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-<style>
-body{
-font-family:Arial;
-background:#f4f4f4;
-text-align:center;
-padding:20px;
-}
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
 
-table{
-margin:auto;
-border-collapse:collapse;
-width:95%;
-background:white;
-}
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
 
-td,th{
-border:1px solid black;
-padding:10px;
-}
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: left;
+    }
 
-h2{
-color:#0a5;
-}
-</style>
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
 </head>
-
 <body>
 
-<h2>Sistema de Lectura de Recibos CFE</h2>
+  <h2>Escanear PDF y extraer datos</h2>
 
-<input type="file" id="pdfUpload" accept="application/pdf">
-<br><br>
+  <input type="file" id="pdfInput" accept="application/pdf">
 
-<table>
-<thead>
-<tr>
-<th>Propietario</th>
-<th>No. Servicio</th>
-<th>Dirección</th>
-<th>Consumo (kWh)</th>
-<th>Descargar</th>
-</tr>
-</thead>
-<tbody id="tablaDatos"></tbody>
-</table>
+  <table>
+    <thead>
+      <tr>
+        <th>Propietario</th>
+        <th>No de Servicio</th>
+        <th>Dirección</th>
+        <th>Consumo (kWh)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td id="propietario"></td>
+        <td id="servicio"></td>
+        <td id="direccion"></td>
+        <td id="consumo"></td>
+      </tr>
+    </tbody>
+  </table>
 
-<script>
+  <script>
+    const pdfInput = document.getElementById("pdfInput");
 
-let registros=[];
+    pdfInput.addEventListener("change", async function () {
+      const file = this.files[0];
+      if (!file) return;
 
-function limpiarTexto(texto){
-return texto
-.replace(/\n+/g,"\n")
-.replace(/\s+/g," ")
-.replace(/SERVlClO/g,"SERVICIO")
-.replace(/D1RECC1ON/g,"DIRECCION")
-.toUpperCase();
-}
+      const fileReader = new FileReader();
+      fileReader.onload = async function () {
+        const typedArray = new Uint8Array(this.result);
 
-document.getElementById('pdfUpload').addEventListener('change', async function(e){
+        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        let fullText = "";
 
-let file=e.target.files[0];
-let reader=new FileReader();
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(" ");
+          fullText += pageText + " ";
+        }
 
-reader.onload=async function(){
+        // 🔍 PATRONES DE BÚSQUEDA
+        const propietarioRegex = /([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)/;
+        const servicioRegex = /No\s?de\s?servicio\s?\d+/i;
+        const direccionRegex = /(Calle|Av\.|Avenida|Colonia|Col\.|CP\s?\d{5}).{0,50}/i;
+        const consumoRegex = /\d+(\.\d+)?\s?kWh/i;
 
-let typedarray=new Uint8Array(this.result);
-let pdf=await pdfjsLib.getDocument(typedarray).promise;
-let page=await pdf.getPage(1);
+        // 📌 EXTRAER DATOS
+        const propietario = fullText.match(propietarioRegex);
+        const servicio = fullText.match(servicioRegex);
+        const direccion = fullText.match(direccionRegex);
+        const consumo = fullText.match(consumoRegex);
 
-let viewport=page.getViewport({scale:3});
-let canvas=document.createElement("canvas");
-let context=canvas.getContext("2d");
+        // 📊 MOSTRAR EN TABLA
+        document.getElementById("propietario").textContent = propietario ? propietario[0] : "No encontrado";
+        document.getElementById("servicio").textContent = servicio ? servicio[0] : "No encontrado";
+        document.getElementById("direccion").textContent = direccion ? direccion[0] : "No encontrado";
+        document.getElementById("consumo").textContent = consumo ? consumo[0] : "No encontrado";
+      };
 
-canvas.height=viewport.height;
-canvas.width=viewport.width;
-
-await page.render({canvasContext:context,viewport:viewport}).promise;
-
-Tesseract.recognize(canvas,'spa').then(({data:{text}})=>{
-
-let limpio=limpiarTexto(text);
-
-// 🔎 EXTRAER CAMPOS EXACTOS
-let propietario=limpio.match(/NOMBRE\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ\s]+)/);
-let servicio=limpio.match(/NO\.?\s*DE\s*SERVICIO\s*[:\-]?\s*(\d+)/);
-let direccion=limpio.match(/DIRECCION\s*[:\-]?\s*([A-Z0-9\s\.\-#]+)/);
-let consumo=limpio.match(/(\d+)\s*KWH/);
-
-// 📦 GUARDAR DATOS
-let datos={
-propietario:propietario?propietario[1].trim():"No encontrado",
-servicio:servicio?servicio[1].trim():"No encontrado",
-direccion:direccion?direccion[1].trim():"No encontrado",
-consumo:consumo?consumo[1].trim():"No encontrado",
-archivo:URL.createObjectURL(file)
-};
-
-registros.push(datos);
-actualizarTabla();
-
-});
-
-};
-
-reader.readAsArrayBuffer(file);
-
-});
-
-function actualizarTabla(){
-
-let tabla=document.getElementById("tablaDatos");
-tabla.innerHTML="";
-
-registros.forEach(d=>{
-
-tabla.innerHTML+=`
-<tr>
-<td>${d.propietario}</td>
-<td>${d.servicio}</td>
-<td>${d.direccion}</td>
-<td>${d.consumo}</td>
-<td><a href="${d.archivo}" download="Recibo_CFE.pdf">Descargar</a></td>
-</tr>
-`;
-
-});
-
-}
-
-</script>
+      fileReader.readAsArrayBuffer(file);
+    });
+  </script>
 
 </body>
 </html>
