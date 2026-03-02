@@ -51,6 +51,7 @@
 </table>
 
 <script>
+// =================== CARGA DEL PDF ===================
 document.getElementById("pdfInput").addEventListener("change", async function () {
 
   const file = this.files[0];
@@ -70,18 +71,18 @@ document.getElementById("pdfInput").addEventListener("change", async function ()
       textoCompleto += content.items.map(i => i.str).join(" ") + " ";
     }
 
-    // Si el texto es insuficiente, aplicar OCR
+    // Si el texto es muy poco, activar OCR
     if (textoCompleto.length < 100) {
       textoCompleto = await ejecutarOCR(pdf);
     }
 
-    extraerDatosConFallback(textoCompleto);
+    extraerDatos(textoCompleto);
   };
 
   reader.readAsArrayBuffer(file);
 });
 
-// OCR para PDFs escaneados
+// =================== OCR ===================
 async function ejecutarOCR(pdf) {
   let textoOCR = "";
 
@@ -102,49 +103,65 @@ async function ejecutarOCR(pdf) {
   return textoOCR;
 }
 
-// Busca usando múltiples patrones
+// =================== UTILIDADES ===================
 function buscarConPatrones(texto, patrones) {
   for (const patron of patrones) {
-    const match = texto.match(patron);
-    if (match) return match[0];
+
+    if (typeof patron === "function") {
+      const res = patron(texto);
+      if (res) return res;
+    }
+
+    if (patron instanceof RegExp) {
+      const match = texto.match(patron);
+      if (match) return match[0];
+    }
   }
   return "No encontrado";
 }
 
-// Extracción robusta CFE
-function extraerDatosConFallback(texto) {
+// =================== CONSUMO POR TOTAL PERIODO ===================
+function buscarConsumoPorPeriodo(texto) {
+  const periodoRegex = /TOTAL\s?PERIODO|TOTAL\s?DEL\s?PERIODO|TOTAI\s?PERIODO/i;
+  const match = texto.match(periodoRegex);
+  if (!match) return null;
+
+  const inicio = match.index;
+  const fragmento = texto.substring(inicio, inicio + 100);
+
+  const numero = fragmento.match(/\b\d{2,4}\b/);
+  return numero ? numero[0] + " kWh" : null;
+}
+
+// =================== EXTRACCIÓN FINAL ===================
+function extraerDatos(texto) {
 
   const patrones = {
     propietario: [
       /[A-ZÁÉÍÓÚÑ]{3,}(?:\s[A-ZÁÉÍÓÚÑ]{3,}){2,}/,
-      /NOMBRE\s?DEL\s?USUARIO\s?:?\s?([A-Z\s]+)/i,
-      /USUARIO\s?:?\s?([A-Z\s]{10,})/i
+      /NOMBRE\s?DEL\s?USUARIO\s?:?\s?([A-Z\s]+)/i
     ],
 
     servicio: [
       /No\.?\s?de\s?Servicio[:\s]*\d{8,}/i,
-      /SERVICIO\s?\d{8,}/i,
       /\b\d{10,}\b/
     ],
 
     direccion: [
       /(CALLE|AVENIDA|COLONIA|COL\.|CP)\s?.{10,80}/i,
-      /DOMICILIO\s?:?\s?.{15,80}/i,
-      /DIRECCION\s?:?\s?.{15,80}/i
+      /DOMICILIO\s?:?\s?.{15,80}/i
     ],
 
     consumo: [
-      /\d+\s?kWh/i,
-      /CONSUMO\s?:?\s?\d+/i,
-      /\b\d{2,4}\b\s?(?=kWh)/i
+      buscarConsumoPorPeriodo,
+      /\d+\s?kWh/i
     ],
 
     total: [
       /\$\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?/,
       /TOTAL\s?A\s?PAGAR\s?\$?\s?\d+(?:\.\d{2})?/i,
       /IMPORTE\s?A\s?PAGAR\s?\$?\s?\d+(?:\.\d{2})?/i,
-      /PAGAR\s?\$?\s?\d+(?:\.\d{2})?/i,
-      /S\s?\d{1,4}(?:\.\d{2})?/ // error OCR común
+      /S\s?\d{1,4}(?:\.\d{2})?/ // error OCR
     ]
   };
 
@@ -155,7 +172,7 @@ function extraerDatosConFallback(texto) {
   total.textContent       = buscarConPatrones(texto, patrones.total);
 }
 
-// Guardar datos
+// =================== GUARDAR ===================
 function guardarDatos() {
   const datos = {
     propietario: propietario.textContent,
@@ -168,7 +185,7 @@ function guardarDatos() {
   alert("Datos guardados correctamente ✅");
 }
 
-// Descargar CSV
+// =================== CSV ===================
 function descargarCSV() {
   const csv =
     "Propietario,No Servicio,Dirección,Consumo,Total\n" +
