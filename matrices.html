@@ -1,65 +1,132 @@
-let chart = null;
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Regresión Lineal</title>
 
-function calcularRegresion() {
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    const x = document.getElementById("xdata").value.split(",").map(Number);
-    const y = document.getElementById("ydata").value.split(",").map(Number);
+<style>
+body{
+font-family: Arial;
+text-align: center;
+margin: 40px;
+}
 
-    const n = x.length;
+input{
+width: 300px;
+padding: 8px;
+margin: 5px;
+}
 
-    let sumX = x.reduce((a,b) => a + b, 0);
-    let sumY = y.reduce((a,b) => a + b, 0);
-    let sumXY = x.reduce((a,b,i) => a + b * y[i], 0);
-    let sumX2 = x.reduce((a,b) => a + b*b, 0);
+button{
+padding:10px 20px;
+margin-top:10px;
+}
 
-    const m = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    const b = (sumY - m * sumX) / n;
+canvas{
+max-width:700px;
+margin:auto;
+}
+</style>
+</head>
 
-    document.getElementById("resultadoRegresion").innerText =
-        `y = ${m.toFixed(4)}x + ${b.toFixed(4)}`;
+<body>
 
-    const puntos = x.map((valor,i)=>({
-        x: valor,
-        y: y[i]
-    }));
+<h2>Calculadora de Regresión Lineal</h2>
 
-    const minX = Math.min(...x);
-    const maxX = Math.max(...x);
+<p>Datos de X (separados por comas)</p>
+<input id="xdata" placeholder="Ej: 1,2,3,4">
 
-    const linea = [
-        {x:minX, y:m*minX + b},
-        {x:maxX, y:m*maxX + b}
-    ];
+<p>Datos de Y (separados por comas)</p>
+<input id="ydata" placeholder="Ej: 2,3,5,7">
 
-    if(chart){
-        chart.destroy();
-    }
+<br>
 
-    const ctx = document.getElementById("grafica");
+<button onclick="calcular()">Calcular</button>
 
-    chart = new Chart(ctx,{
-        type:"scatter",
-        data:{
-            datasets:[
-                {
-                    label:"Datos",
-                    data:puntos
-                },
-                {
-                    label:"Regresión",
-                    data:linea,
-                    type:"line",
-                    fill:false
-                }
-            ]
-        },
-        options:{
-            scales:{
-                x:{
-                    type:"linear"
-                }
-            }
-        }
-    });
+<h3 id="resultado"></h3>
+
+<canvas id="grafica"></canvas>
+
+<script>
+
+let grafica = null;
+
+function calcular(){
+
+let x = document.getElementById("xdata").value.split(",").map(Number);
+let y = document.getElementById("ydata").value.split(",").map(Number);
+
+let n = x.length;
+
+let sumx = 0;
+let sumy = 0;
+let sumxy = 0;
+let sumx2 = 0;
+
+for(let i=0;i<n;i++){
+sumx += x[i];
+sumy += y[i];
+sumxy += x[i]*y[i];
+sumx2 += x[i]*x[i];
+}
+
+let m = (n*sumxy - sumx*sumy)/(n*sumx2 - sumx*sumx);
+let b = (sumy - m*sumx)/n;
+
+document.getElementById("resultado").innerHTML =
+"y = " + m.toFixed(4) + "x + " + b.toFixed(4);
+
+let puntos = [];
+
+for(let i=0;i<n;i++){
+puntos.push({x:x[i],y:y[i]});
+}
+
+let minx = Math.min(...x);
+let maxx = Math.max(...x);
+
+let linea = [
+{x:minx, y:m*minx + b},
+{x:maxx, y:m*maxx + b}
+];
+
+if(grafica){
+grafica.destroy();
+}
+
+let ctx = document.getElementById("grafica").getContext("2d");
+
+grafica = new Chart(ctx,{
+type:"scatter",
+data:{
+datasets:[
+{
+label:"Datos",
+data:puntos
+},
+{
+label:"Recta de regresión",
+type:"line",
+data:linea,
+fill:false
+}
+]
+},
+options:{
+scales:{
+x:{
+type:"linear",
+position:"bottom"
+}
+}
+}
+});
 
 }
+
+</script>
+
+</body>
+</html>
