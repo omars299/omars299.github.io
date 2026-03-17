@@ -1,71 +1,62 @@
-let grafica = null;
+let chart = null;
 
-function calcular() {
+function calcularRegresion() {
 
-    let x = document.getElementById("xdata").value.split(",").map(Number);
-    let y = document.getElementById("ydata").value.split(",").map(Number);
+    const x = document.getElementById("xdata").value.split(",").map(Number);
+    const y = document.getElementById("ydata").value.split(",").map(Number);
 
-    let n = x.length;
+    const n = x.length;
 
-    let sumx = 0;
-    let sumy = 0;
-    let sumxy = 0;
-    let sumx2 = 0;
+    let sumX = x.reduce((a,b) => a + b, 0);
+    let sumY = y.reduce((a,b) => a + b, 0);
+    let sumXY = x.reduce((a,b,i) => a + b * y[i], 0);
+    let sumX2 = x.reduce((a,b) => a + b*b, 0);
 
-    for (let i = 0; i < n; i++) {
-        sumx += x[i];
-        sumy += y[i];
-        sumxy += x[i] * y[i];
-        sumx2 += x[i] * x[i];
+    const m = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const b = (sumY - m * sumX) / n;
+
+    document.getElementById("resultadoRegresion").innerText =
+        `y = ${m.toFixed(4)}x + ${b.toFixed(4)}`;
+
+    const puntos = x.map((valor,i)=>({
+        x: valor,
+        y: y[i]
+    }));
+
+    const minX = Math.min(...x);
+    const maxX = Math.max(...x);
+
+    const linea = [
+        {x:minX, y:m*minX + b},
+        {x:maxX, y:m*maxX + b}
+    ];
+
+    if(chart){
+        chart.destroy();
     }
 
-    let m = (n * sumxy - sumx * sumy) / (n * sumx2 - sumx * sumx);
-    let b = (sumy - m * sumx) / n;
+    const ctx = document.getElementById("grafica");
 
-    document.getElementById("resultadoRegresion").innerHTML =
-        "y = " + m.toFixed(4) + "x + " + b.toFixed(4);
-
-    let puntos = [];
-
-    for (let i = 0; i < n; i++) {
-        puntos.push({ x: x[i], y: y[i] });
-    }
-
-    let linea = [];
-
-    let minx = Math.min(...x);
-    let maxx = Math.max(...x);
-
-    linea.push({ x: minx, y: m * minx + b });
-    linea.push({ x: maxx, y: m * maxx + b });
-
-    if (grafica) {
-        grafica.destroy();
-    }
-
-    let ctx = document.getElementById("grafica").getContext("2d");
-
-    grafica = new Chart(ctx, {
-        type: 'scatter',
-        data: {
-            datasets: [
+    chart = new Chart(ctx,{
+        type:"scatter",
+        data:{
+            datasets:[
                 {
-                    label: 'Datos',
-                    data: puntos
+                    label:"Datos",
+                    data:puntos
                 },
                 {
-                    label: 'Recta de regresión',
-                    type: 'line',
-                    data: linea,
-                    fill: false
+                    label:"Regresión",
+                    data:linea,
+                    type:"line",
+                    fill:false
                 }
             ]
         },
-        options: {
-            scales: {
-                x: {
-                    type: 'linear',
-                    position: 'bottom'
+        options:{
+            scales:{
+                x:{
+                    type:"linear"
                 }
             }
         }
